@@ -152,7 +152,7 @@ machine.Timer(period=DISPLAY_UPDATE_INTERVAL_SECS*1000, callback=update_display)
 machine.Timer(period=NTP_INTERVAL_HOURS*1000*60*60, callback=set_time)
 
 # web server
-addr = socket.getaddrinfo("0.0.0.0", 80)[0][-1] # TODO: IPv6 (see https://github.com/micropython/micropython/pull/9108)
+addr = socket.getaddrinfo("0.0.0.0", 80)[0][-1] # see https://github.com/BenjaminEHowe/live-train-board/issues/6
 s = socket.socket()
 s.bind(addr)
 s.listen(1)
