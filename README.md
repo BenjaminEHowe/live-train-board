@@ -6,3 +6,5 @@ A live train departure board using the [Pimoroni Badger 2040 W](https://shop.pim
 1. Copy the files in [the `mpy` directory](/mpy) to your device.
 1. Set your Wi-Fi details (and country, if not in the UK) within `WIFI_CONFIG.py`.
 1. Set `CRS_LOCATION` (and optionally `CRS_FILTER`) within `badger_ldb.py`. If you're not sure what the CRS code is for your local station, [you can find it on the National Rail website](https://www.nationalrail.co.uk/find-a-station/).
+
+Live departure board data provided by the [Rail Delivery Group](https://www.raildeliverygroup.com/).
