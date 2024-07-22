@@ -15,9 +15,9 @@ There are several configurable values set in `config.json`:
 - `CRS_LOCATION`: the CRS code for the station to show departures from.
 - `CRS_FILTER` (optional, can be blank): filter departures to only include trains calling at the given station.
 - `DISPLAY_UPDATE_INTERVAL_SECS`: how often to update the display, in seconds. The default value is `60` (seconds), but this could be increased for stations with infrequent departures.
-- `EINK_REFRESH_INTERVAL`: how often to perform a "full" refresh of the e ink display, to remove ghosting. The default value is to `60` -- i.e. a full refresh every 60th update.
+- `EINK_REFRESH_INTERVAL`: how often to perform a "full" refresh of the e ink display, to remove ghosting. The default value is to `60` -- i.e. a full refresh every 60th update. Set to 0 to disable.
 - `EINK_UPDATE_SPEED`: how quickly to update the display -- see [the Badger 2040 docs for details](https://github.com/pimoroni/badger2040/blob/main/docs/reference.md#update-speed).
 - `LED_STEP`: the size of the "step" to take when the LED "breathes".
 - `LED_STEP_WAIT_MS`: how long to wait between "steps", in milliseconds, when the LED "breathes".
 - `NTP_HOST`: the hostname of the server to use for [NTP](https://en.wikipedia.org/wiki/Network_Time_Protocol), when setting the time on boot. The default value is `time.cloudflare.com`, which is [Cloudflare's secure time service](https://blog.cloudflare.com/secure-time).
-- `NTP_INTERVAL_HOURS`: how often to update the time using NTP, in hours. The default value is `4` (hours), but this may need to be reduced due to [issues with clock drift](https://github.com/micropython/micropython/issues/2724).
+- `NTP_INTERVAL_HOURS`: how often to update the time using NTP, in hours. The default value is `4` (hours), but this may need to be reduced due to [issues with clock drift](https://github.com/micropython/micropython/issues/2724). Set to 0 to disable.
