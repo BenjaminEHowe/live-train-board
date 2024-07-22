@@ -1,0 +1,12 @@
+{
+  "API_URL_PREFIX": "https://www.beh.uk/api/raildata",
+  "CRS_LOCATION": "RDG",
+  "CRS_FILTER": "",
+  "DISPLAY_UPDATE_INTERVAL_SECS": 60,
+  "EINK_REFRESH_INTERVAL": 60,
+  "EINK_UPDATE_SPEED": 2,
+  "LED_STEP": 4,
+  "LED_STEP_WAIT_MS": 100,
+  "NTP_HOST": "time.cloudflare.com",
+  "NTP_INTERVAL_HOURS": 4
+}

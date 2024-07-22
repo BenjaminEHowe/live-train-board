@@ -8,39 +8,25 @@ import time
 import ubinascii
 import urequests
 import ujson
-import _thread
 
+with open("config.json") as f:
+    config = ujson.load(f)
 
-# config-y constants
-CRS_LOCATION = "CHANGE_ME"
-CRS_FILTER   = ""
-DISPLAY_UPDATE_INTERVAL_SECS = 60
-EINK_REFRESH_INTERVAL = 60
-LED_BLINK_INTERVAL_SECS = 5
-LED_STEP = 4
-LED_STEP_WAIT_MS = 100
-NTP_HOST = "time.cloudflare.com"
-NTP_INTERVAL_HOURS = 4
-UPDATE_SPEED = badger2040.UPDATE_FAST
-
-# other constants
+# constants
 HTTP_CONTENT_HTML = "text/html"
 HTTP_CONTENT_JSON = "application/json"
 HTTP_CONTENT_PLAIN = "text/plain"
 HTTP_STATUS_NOT_FOUND = "404 Not Found"
 HTTP_STATUS_OK = "200 OK"
-LED_BRIGHT = 255
 LED_MAX = 128
 LED_MIN = 0
-LED_NORMAL = 128
-LED_DIM    = 16
 LED_RISING = "LED_RISING"
 LED_FALLING = "LED_FALLING"
 PEN_BLACK = 0
 PEN_WHITE = 15
 TS_SLICE_START = len("0000-00-00T")
 TS_SLICE_END   = len("0000-00-00T00:00")
-URL_PREFIX = "https://www.beh.uk/api/raildata/departures/v1"
+VERSION = "0.0.1"
 
 # state
 board_id = ubinascii.hexlify(machine.unique_id()).decode()
@@ -51,24 +37,15 @@ led_brightness = 0
 led_direction = LED_RISING
 
 
-def blink_led(timer):
-    global badger, led_brightness
-    if led_brightness == LED_DIM:
-        led_brightness = LED_NORMAL
-    else:
-        led_brightness = LED_DIM
-    badger.led(led_brightness)
-
-
 def breathe_led(timer):
     global badger, led_brightness, led_direction
     if led_direction == LED_RISING:
-        led_brightness += LED_STEP
+        led_brightness += config["LED_STEP"]
         if led_brightness >= LED_MAX:
             led_brightness = LED_MAX
             led_direction = LED_FALLING
     else:
-        led_brightness -= LED_STEP
+        led_brightness -= config["LED_STEP"]
         if led_brightness <= LED_MIN:
             led_brightness = LED_MIN
             led_direction = LED_RISING
@@ -76,11 +53,11 @@ def breathe_led(timer):
 
 
 def get_data():
-    url = f"{URL_PREFIX}/{CRS_LOCATION}"
-    if CRS_FILTER != None and CRS_FILTER != "":
-        url += f"/{CRS_FILTER}"
+    url = config["API_URL_PREFIX"] + "/departures/v1/" + config["CRS_LOCATION"]
+    if config["CRS_FILTER"]:
+        url += "/" + config["CRS_FILTER"]
     res = urequests.request("GET", url, headers={
-        "user-agent": f"Mozilla/5.0 (compatible; uk.beh.mpy-ldb/1.0; board/{board_id}; +https://www.beh.uk/bot)",
+        "user-agent": f"Mozilla/5.0 (compatible; uk.beh.live-train-board/{VERSION}; board/{board_id})",
     })
     # TODO: handle potential request failure better
     return ujson.loads(res.text)
@@ -128,28 +105,29 @@ def update_display(timer):
         badger.text(data['filterLocation'], 3, 120 , scale=1)
     # time
     badger.text(data["generatedAt"][TS_SLICE_START:TS_SLICE_END], 116, 107 , scale=3)
-    if eink_update_count % EINK_REFRESH_INTERVAL == 0:
+    if config["EINK_REFRESH_INTERVAL"] and eink_update_count % config["EINK_REFRESH_INTERVAL"] == 0:
         badger.set_update_speed(badger2040.UPDATE_NORMAL)
-    badger.update()
-    if eink_update_count % EINK_REFRESH_INTERVAL == 0:
-        badger.set_update_speed(UPDATE_SPEED)
+        badger.update()
+        badger.set_update_speed(config["EINK_UPDATE_SPEED"])
+    else:
+        badger.update()
     eink_update_count += 1
 
 
 badger = badger2040.Badger2040()
 network.hostname(f"train-board-{board_id[:16]}")
 badger.connect()
-ntptime.host = NTP_HOST
+ntptime.host = config["NTP_HOST"]
 ntptime.settime()
 boot_time = time.time()
 badger.set_font("bitmap8")
 
 # set timers
-#machine.Timer(period=LED_BLINK_INTERVAL_SECS*1000, callback=blink_led)
-machine.Timer(period=LED_STEP_WAIT_MS, callback=breathe_led)
+machine.Timer(period=config["LED_STEP_WAIT_MS"], callback=breathe_led)
 update_display(None)
-machine.Timer(period=DISPLAY_UPDATE_INTERVAL_SECS*1000, callback=update_display)
-machine.Timer(period=NTP_INTERVAL_HOURS*1000*60*60, callback=set_time)
+machine.Timer(period=config["DISPLAY_UPDATE_INTERVAL_SECS"]*1000, callback=update_display)
+if config["NTP_INTERVAL_HOURS"]:
+    machine.Timer(period=config["NTP_INTERVAL_HOURS"]*1000*60*60, callback=set_time)
 
 # web server
 addr = socket.getaddrinfo("0.0.0.0", 80)[0][-1] # see https://github.com/BenjaminEHowe/live-train-board/issues/6
@@ -187,7 +165,7 @@ while True:
                 "einkUpdates": eink_update_count,
                 "python": os.uname().version,
                 "uptime": time.time()-boot_time,
-                "version": "v0.0.1",
+                "version": f"v{VERSION}",
                 
             })
         print(f"Returning {status}")
