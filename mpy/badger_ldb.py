@@ -38,7 +38,7 @@ led_direction = LED_RISING
 
 
 def breathe_led(timer):
-    global badger, led_brightness, led_direction
+    global led_brightness, led_direction
     if led_direction == LED_RISING:
         led_brightness += config["LED_STEP"]
         if led_brightness >= LED_MAX:
@@ -50,6 +50,26 @@ def breathe_led(timer):
             led_brightness = LED_MIN
             led_direction = LED_RISING
     badger.led(led_brightness)
+
+
+def connect_to_wifi():
+    network.hostname(f"train-board-{board_id[:16]}")
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    wlan.connect(config["WIFI_NETWORK"], config["WIFI_PASSWORD"])
+    badger.set_pen(PEN_WHITE)
+    badger.clear()
+    badger.set_pen(PEN_BLACK)
+    badger.text("Data provided by the Rail Delivery Group", 4, 112, scale=1)
+    badger.text("Connecting to " + config["WIFI_NETWORK"], 4, 4, scale=1)
+    badger.set_update_speed(config["EINK_UPDATE_SPEED"])
+    badger.update()
+    while wlan.isconnected() == False:
+        time.sleep(0.1)
+    badger.text("Connected, my IP address is:", 4, 16, scale=1)
+    badger.text(wlan.ifconfig()[0], 12, 30, scale=2)
+    badger.update()
+    time.sleep(config["WIFI_SUCCESS_MESSAGE_SECS"])
 
 
 def get_data():
@@ -68,7 +88,7 @@ def set_time(timer):
 
 
 def update_display(timer):
-    global badger, data, eink_update_count
+    global data, eink_update_count
     def display_service(y, service):
         def etd_text(etd):
             if etd == "On time":
@@ -115,12 +135,11 @@ def update_display(timer):
 
 
 badger = badger2040.Badger2040()
-network.hostname(f"train-board-{board_id[:16]}")
-badger.connect()
+badger.set_font("bitmap8")
+connect_to_wifi()
 ntptime.host = config["NTP_HOST"]
 ntptime.settime()
 boot_time = time.time()
-badger.set_font("bitmap8")
 
 # set timers
 machine.Timer(period=config["LED_STEP_WAIT_MS"], callback=breathe_led)
