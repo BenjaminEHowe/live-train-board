@@ -85,12 +85,14 @@ def connect_to_wifi():
     wlan.connect(config["WIFI_NETWORK"], config["WIFI_PASSWORD"])
     display_clear()
     badger.text("Data provided by the Rail Delivery Group", 4, 112, scale=1)
-    badger.text("Connecting to " + config["WIFI_NETWORK"], 4, 4, scale=1)
+    badger.text("Board ID:", 4, 4, scale=1)
+    badger.text(board_id, 12, 18, scale=2)
+    badger.text("Connecting to " + config["WIFI_NETWORK"], 4, 48, scale=1)
     display_update()
     while wlan.isconnected() == False:
         time.sleep(0.1)
-    badger.text("Connected, my IP address is:", 4, 16, scale=1)
-    badger.text(wlan.ifconfig()[0], 12, 30, scale=2)
+    badger.text("Connected, my IP address is:", 4, 60, scale=1)
+    badger.text(wlan.ifconfig()[0], 12, 72, scale=2)
     display_update()
     time.sleep(config["WIFI_SUCCESS_MESSAGE_SECS"])
     gc.collect()
@@ -102,6 +104,7 @@ def get_data():
         url += "/" + config["CRS_FILTER"]
     res = urequests.request("GET", url, headers={
         "user-agent": f"Mozilla/5.0 (compatible; uk.beh.live-train-board/{VERSION}; board/{board_id})",
+        "x-board-id": board_id,
     })
     # TODO: handle potential request failure better
     return ujson.loads(res.text)
