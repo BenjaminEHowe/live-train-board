@@ -1,4 +1,5 @@
 import badger2040
+import gc
 import machine
 import network
 import ntptime
@@ -70,6 +71,7 @@ def connect_to_wifi():
     badger.text(wlan.ifconfig()[0], 12, 30, scale=2)
     badger.update()
     time.sleep(config["WIFI_SUCCESS_MESSAGE_SECS"])
+    gc.collect()
 
 
 def get_data():
@@ -132,6 +134,7 @@ def update_display(timer):
     else:
         badger.update()
     eink_update_count += 1
+    gc.collect()
 
 
 badger = badger2040.Badger2040()
@@ -193,6 +196,7 @@ while True:
         cl.send("\r\n")
         cl.send(body)
         cl.close()
+        gc.collect()
 
     except OSError as e:
         cl.close()
