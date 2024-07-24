@@ -118,9 +118,11 @@ def should_be_in_sleep_mode(
     start_hour,
     end_hour,
     start_minute = 00,
-    end_minute = 0,
-    current_time = time.localtime(),
+    end_minute = 00,
+    current_time = None,
 ):
+    if not current_time:
+        current_time = time.localtime()
     current_hour = current_time[3]
     current_minute = current_time[4]
     if (
