@@ -43,6 +43,7 @@ eink_update_count = 0
 led_brightness = 0
 led_direction = LED_RISING
 sleep_mode_active = False
+utc_offset = 0
 
 
 def breathe_led(timer):
@@ -76,6 +77,23 @@ def display_update():
         badger.update()
     eink_update_count += 1
     gc.collect()
+
+
+def get_utc_offset(timer):
+    global utc_offset
+    res = urequests.request("GET", "http://worldtimeapi.org/api/ip", headers={
+        "user-agent": f"Mozilla/5.0 (compatible; uk.beh.live-train-board/{VERSION}; board/{board_id})",
+    })
+    json = ujson.loads(res.text)
+    if json["dst"]:
+        utc_offset = json["dst_offset"]
+    else:
+        utc_offset = json["raw_offset"]
+    gc.collect()
+
+
+def localtime(secs=None):
+  return time.localtime((secs if secs else time.time()) + utc_offset)
 
 
 def connect_to_wifi():
@@ -122,7 +140,7 @@ def should_be_in_sleep_mode(
     current_time = None,
 ):
     if not current_time:
-        current_time = time.localtime()
+        current_time = localtime()
     current_hour = current_time[3]
     current_minute = current_time[4]
     if (
@@ -211,6 +229,7 @@ def run():
     ntptime.host = config["NTP_HOST"]
     ntptime.settime()
     boot_time = time.time()
+    get_utc_offset(None)
 
     # set timers
     machine.Timer(period=config["LED_STEP_WAIT_MS"], callback=breathe_led)
@@ -218,6 +237,7 @@ def run():
     machine.Timer(period=config["DISPLAY_UPDATE_INTERVAL_SECS"]*1000, callback=update_display)
     if config["NTP_INTERVAL_HOURS"]:
         machine.Timer(period=config["NTP_INTERVAL_HOURS"]*1000*60*60, callback=set_time)
+    machine.Timer(period=86400*1000, callback=get_utc_offset)
 
     # web server
     addr = socket.getaddrinfo("0.0.0.0", 80)[0][-1] # see https://github.com/BenjaminEHowe/live-train-board/issues/6
