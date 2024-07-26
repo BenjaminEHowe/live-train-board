@@ -10,8 +10,38 @@ import ubinascii
 import urequests
 import ujson
 
-with open("config.json") as f:
-    config = ujson.load(f)
+
+class Config:
+    DEFAULT_CONFIG = {
+        "API_URL_PREFIX": "https://www.beh.uk/api/raildata",
+        "DISPLAY_UPDATE_INTERVAL_SECS": 60,
+        "EINK_REFRESH_INTERVAL": 60,
+        "EINK_UPDATE_SPEED": 2,
+        "LED_STEP": 4,
+        "LED_STEP_WAIT_MS": 100,
+        "NTP_HOST": "time.cloudflare.com",
+        "NTP_INTERVAL_HOURS": 4,
+        "SLEEP_MODE": "1800-0800",
+        "WIFI_SUCCESS_MESSAGE_SECS": 3,
+    }
+    
+    def __init__(self, filename):
+        self.filename = filename
+        self.load()
+    
+    def get(self, key):
+        if key in self.data:
+            return self.data[key]
+        else:
+            return None
+    
+    def load(self):
+        with open(self.filename) as f:
+            self.data = self.DEFAULT_CONFIG | ujson.load(f)
+
+
+config = Config(filename="config.json")
+
 
 # constants
 HTTP_CONTENT_HTML = "text/html"
@@ -23,12 +53,12 @@ LED_MAX = 128
 LED_MIN = 0
 LED_RISING = "LED_RISING"
 LED_FALLING = "LED_FALLING"
-if config["SLEEP_MODE"]:
+if config.get("SLEEP_MODE"):
     SLEEP_MODE_TEXT = "SLEEP MODE"
-    SLEEP_MODE_START_HOUR = int(config["SLEEP_MODE"][0:2])
-    SLEEP_MODE_START_MINUTE = int(config["SLEEP_MODE"][2:4])
-    SLEEP_MODE_END_HOUR = int(config["SLEEP_MODE"][5:7])
-    SLEEP_MODE_END_MINUTE = int(config["SLEEP_MODE"][7:9])
+    SLEEP_MODE_START_HOUR = int(config.get("SLEEP_MODE")[0:2])
+    SLEEP_MODE_START_MINUTE = int(config.get("SLEEP_MODE")[2:4])
+    SLEEP_MODE_END_HOUR = int(config.get("SLEEP_MODE")[5:7])
+    SLEEP_MODE_END_MINUTE = int(config.get("SLEEP_MODE")[7:9])
 PEN_BLACK = 0
 PEN_WHITE = 15
 TS_SLICE_START = len("0000-00-00T")
@@ -49,12 +79,12 @@ utc_offset = 0
 def breathe_led(timer):
     global led_brightness, led_direction
     if led_direction == LED_RISING:
-        led_brightness += config["LED_STEP"]
+        led_brightness += config.get("LED_STEP")
         if led_brightness >= LED_MAX:
             led_brightness = LED_MAX
             led_direction = LED_FALLING
     else:
-        led_brightness -= config["LED_STEP"]
+        led_brightness -= config.get("LED_STEP")
         if led_brightness <= LED_MIN:
             led_brightness = LED_MIN
             led_direction = LED_RISING
@@ -69,10 +99,10 @@ def display_clear():
 
 def display_update():
     global eink_update_count
-    if config["EINK_REFRESH_INTERVAL"] and eink_update_count % config["EINK_REFRESH_INTERVAL"] == 0:
+    if config.get("EINK_REFRESH_INTERVAL") and eink_update_count % config.get("EINK_REFRESH_INTERVAL") == 0:
         badger.set_update_speed(badger2040.UPDATE_NORMAL)
         badger.update()
-        badger.set_update_speed(config["EINK_UPDATE_SPEED"])
+        badger.set_update_speed(config.get("EINK_UPDATE_SPEED"))
     else:
         badger.update()
     eink_update_count += 1
@@ -100,26 +130,26 @@ def connect_to_wifi():
     network.hostname(f"train-board-{board_id[:16]}")
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
-    wlan.connect(config["WIFI_NETWORK"], config["WIFI_PASSWORD"])
+    wlan.connect(config.get("WIFI_NETWORK"), config.get("WIFI_PASSWORD"))
     display_clear()
     badger.text("Data provided by the Rail Delivery Group", 4, 112, scale=1)
     badger.text("Board ID:", 4, 4, scale=1)
     badger.text(board_id, 12, 18, scale=2)
-    badger.text("Connecting to " + config["WIFI_NETWORK"], 4, 48, scale=1)
+    badger.text("Connecting to " + config.get("WIFI_NETWORK"), 4, 48, scale=1)
     display_update()
     while wlan.isconnected() == False:
         time.sleep(0.1)
     badger.text("Connected, my IP address is:", 4, 60, scale=1)
     badger.text(wlan.ifconfig()[0], 12, 72, scale=2)
     display_update()
-    time.sleep(config["WIFI_SUCCESS_MESSAGE_SECS"])
+    time.sleep(config.get("WIFI_SUCCESS_MESSAGE_SECS"))
     gc.collect()
 
 
 def get_data():
-    url = config["API_URL_PREFIX"] + "/departures/v1/" + config["CRS_LOCATION"]
-    if config["CRS_FILTER"]:
-        url += "/" + config["CRS_FILTER"]
+    url = config.get("API_URL_PREFIX") + "/departures/v1/" + config.get("CRS_LOCATION")
+    if config.get("CRS_FILTER"):
+        url += "/" + config.get("CRS_FILTER")
     res = urequests.request("GET", url, headers={
         "user-agent": f"Mozilla/5.0 (compatible; uk.beh.live-train-board/{VERSION}; board/{board_id})",
         "x-board-id": board_id,
@@ -190,7 +220,7 @@ def update_display(timer):
                 detailText += f" formed of {service['length']} coaches"
             badger.text(detailText, 55, y + 16, scale=1)
     
-    if config["SLEEP_MODE"] and should_be_in_sleep_mode(
+    if config.get("SLEEP_MODE") and should_be_in_sleep_mode(
         start_hour = SLEEP_MODE_START_HOUR,
         start_minute = SLEEP_MODE_START_MINUTE,
         end_hour = SLEEP_MODE_END_HOUR,
@@ -224,19 +254,19 @@ def run():
     global badger
     badger = badger2040.Badger2040()
     badger.set_font("bitmap8")
-    badger.set_update_speed(config["EINK_UPDATE_SPEED"])
+    badger.set_update_speed(config.get("EINK_UPDATE_SPEED"))
     connect_to_wifi()
-    ntptime.host = config["NTP_HOST"]
+    ntptime.host = config.get("NTP_HOST")
     ntptime.settime()
     boot_time = time.time()
     get_utc_offset(None)
 
     # set timers
-    machine.Timer(period=config["LED_STEP_WAIT_MS"], callback=breathe_led)
+    machine.Timer(period=config.get("LED_STEP_WAIT_MS"), callback=breathe_led)
     update_display(None)
-    machine.Timer(period=config["DISPLAY_UPDATE_INTERVAL_SECS"]*1000, callback=update_display)
-    if config["NTP_INTERVAL_HOURS"]:
-        machine.Timer(period=config["NTP_INTERVAL_HOURS"]*1000*60*60, callback=set_time)
+    machine.Timer(period=config.get("DISPLAY_UPDATE_INTERVAL_SECS")*1000, callback=update_display)
+    if config.get("NTP_INTERVAL_HOURS"):
+        machine.Timer(period=config.get("NTP_INTERVAL_HOURS")*1000*60*60, callback=set_time)
     machine.Timer(period=86400*1000, callback=get_utc_offset)
 
     # web server
