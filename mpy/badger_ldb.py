@@ -274,6 +274,7 @@ def run():
     # web server
     addr = socket.getaddrinfo("0.0.0.0", 80)[0][-1] # see https://github.com/BenjaminEHowe/live-train-board/issues/6
     s = socket.socket()
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(addr)
     s.listen(1)
     print("listening on", addr)
@@ -288,7 +289,12 @@ def run():
             status = HTTP_STATUS_NOT_FOUND
             content_type = HTTP_CONTENT_PLAIN
             body = "not found"
-            if path == "/data":
+            if path == "/":
+                status = HTTP_STATUS_OK
+                content_type = HTTP_CONTENT_HTML
+                with open("web_ui.html") as f:
+                    body = f.read()
+            elif path == "/data":
                 status = HTTP_STATUS_OK
                 content_type = HTTP_CONTENT_JSON
                 body = ujson.dumps(data)
@@ -319,3 +325,7 @@ def run():
         except OSError as e:
             cl.close()
             print("connection closed")
+        
+        finally:
+            body = None
+            gc.collect()
