@@ -32,12 +32,14 @@ class Config:
     def get(self, key):
         if key in self.data:
             return self.data[key]
+        elif key in self.DEFAULT_CONFIG:
+            return self.DEFAULT_CONFIG[key]
         else:
             return None
     
     def load(self):
         with open(self.filename) as f:
-            self.data = self.DEFAULT_CONFIG | ujson.load(f)
+            self.data = ujson.load(f)
 
 
 config = Config(filename="config.json")
