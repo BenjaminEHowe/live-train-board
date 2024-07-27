@@ -27,4 +27,4 @@ All of these items are optional, and have sensible defaults:
 - `EINK_UPDATE_SPEED`: how quickly to update the display -- see [the Badger 2040 docs for details](https://github.com/pimoroni/badger2040/blob/main/docs/reference.md#update-speed). The default value is `2` (i.e. `UPDATE_FAST`).
 - `NTP_HOST`: the hostname of the server to use for [NTP](https://en.wikipedia.org/wiki/Network_Time_Protocol), when setting the time on boot. The default value is `time.cloudflare.com`, which is [Cloudflare's secure time service](https://blog.cloudflare.com/secure-time).
 - `NTP_INTERVAL_HOURS`: how often to update the time using NTP, in hours. The default value is `4` (hours), but this may need to be reduced due to [issues with clock drift](https://github.com/micropython/micropython/issues/2724). Set to 0 to disable.
-- `SLEEP_MODE`: when to enter "sleep mode", where the display does not update. Set to an empty string to disable.
+- `SLEEP_MODE`: when to enter "sleep mode", where the display does not update. The default value is 6pm to 8am (i.e. `1800-0800`). Set to an empty string to disable.
