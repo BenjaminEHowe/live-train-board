@@ -4,8 +4,325 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Live Train Board: Web UI</title>
+  <style>
+    /*! normalize.css v8.0.1 | MIT License | github.com/necolas/normalize.css */
+    button,hr,input{overflow:visible}progress,sub,sup{vertical-align:baseline}[type=checkbox],[type=radio],legend{box-sizing:border-box;padding:0}html{line-height:1.15;-webkit-text-size-adjust:100%}body{margin:0}details,main{display:block}h1{font-size:2em;margin:.67em 0}hr{box-sizing:content-box;height:0}code,kbd,pre,samp{font-family:monospace,monospace;font-size:1em}a{background-color:transparent}abbr[title]{border-bottom:none;text-decoration:underline;text-decoration:underline dotted}b,strong{font-weight:bolder}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative}sub{bottom:-.25em}sup{top:-.5em}img{border-style:none}button,input,optgroup,select,textarea{font-family:inherit;font-size:100%;line-height:1.15;margin:0}button,select{text-transform:none}[type=button],[type=reset],[type=submit],button{-webkit-appearance:button}[type=button]::-moz-focus-inner,[type=reset]::-moz-focus-inner,[type=submit]::-moz-focus-inner,button::-moz-focus-inner{border-style:none;padding:0}[type=button]:-moz-focusring,[type=reset]:-moz-focusring,[type=submit]:-moz-focusring,button:-moz-focusring{outline:ButtonText dotted 1px}fieldset{padding:.35em .75em .625em}legend{color:inherit;display:table;max-width:100%;white-space:normal}textarea{overflow:auto}[type=number]::-webkit-inner-spin-button,[type=number]::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}[type=search]::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}[hidden],template{display:none}
+
+    body {
+      font-family: sans-serif;
+      margin: 20px auto;
+      width: 600px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    ul {
+      line-height: 1.5;
+    }
+
+    /* preview tables */
+    #preview, pre { outline: 1px solid #ccc; padding: 0.25em; }
+    #preview, #preview table { width: 34em; }
+    #preview table { border-spacing: 0; font-family: monospace; table-layout: fixed; }
+    #preview table td { line-height: 1; overflow: hidden; padding: 0; white-space: nowrap; }
+    .service-headline { font-size: 175%; }
+    .std { width: 4em; }
+    .dest { width: 12.5em; }
+    .time { font-size: 250%; text-align: center; }
+    
+    /* JSON highlighting */
+    .string { color: green; }
+    .number { color: darkorange; }
+    .boolean { color: blue; }
+    .null { color: magenta; }
+    .key { color: red; }
+
+    /* config table */
+    table#config { margin-top: -20px; }
+    #config input { width: 240px; }
+
+    /* logs table */
+    table#logs { border: solid 1px #000; border-collapse: collapse; border-spacing: 0; }
+    table#logs th, table#logs td { border: solid 1px #000; padding: 5px; }
+    table#logs th { font-weight: bold; text-align: left; }
+  </style>
 </head>
 <body>
   <h1>Live Train Board: Web UI</h1>
+
+  <h2>Status</h2>
+  <ul>
+    <li><strong>Board ID:</strong> <span id="board-id"></span></li>
+    <li><strong>Version:</strong> <span id="version"></span></li>
+    <li><strong>Uptime:</strong> <span id="uptime"></span></li>
+    <li><strong>E Ink Updates:</strong> <span id="e-ink-updates"></span></li>
+  </ul>
+
+  <h2>Preview</h2>
+  <div id="preview">
+    <table id="services"></table>
+    <table id="meta"></table>
+  </div>
+
+  <h2>Data</h2>
+  <pre id="data"></pre>
+
+  <h2>Config</h2>
+  <table id="config">
+    <tr>
+      <td colspan="2"><h3>Wi-Fi</h3></td>
+    </tr>
+    <tr>
+      <td>Country:</td>
+      <td><input id="wifi-country"></td>
+    </tr>
+    <tr>
+      <td>Name:</td>
+      <td><input id="wifi-name"></td>
+    </tr>
+    <tr>
+      <td>Password:</td>
+      <td><input id="wifi-password"></td>
+    </tr>
+    <tr>
+      <td colspan="2"><h3>Location</h3></td>
+    </tr>
+    <tr>
+      <td>Location:</td>
+      <td><input id="crs-location"></td>
+    </tr>
+    <tr>
+      <td>Filter:</td>
+      <td><input id="crs-filter"></td>
+    </tr>
+    <tr>
+      <td colspan="2"><h3>Display</h3></td>
+    </tr>
+    <tr>
+      <td>Display update interval (seconds):</td>
+      <td><input id="display-update-interval-secs"></td>
+    </tr>
+    <tr>
+      <td>Sleep mode:</td>
+      <td><input id="sleep-mode"></td>
+    </tr>
+    <tr>
+      <td>E-Ink refresh interval:</td>
+      <td><input id="eink-refresh-interval"></td>
+    </tr>
+    <tr>
+      <td>E-Ink update speed:</td>
+      <td><input id="eink-update-speed"></td>
+    </tr>
+    <tr>
+      <td colspan="2"><h3>Miscellaneous</h3></td>
+    </tr>
+    <tr>
+      <td>API URL prefix:</td>
+      <td><input id="api-url-prefix"></td>
+    </tr>
+    <tr>
+      <td>NTP host:</td>
+      <td><input id="ntp-host"></td>
+    </tr>
+    <tr>
+      <td>NTP interval (hours):</td>
+      <td><input id="ntp-interval-hours"></td>
+    </tr>
+  </table>
+
+  <h2>Logs</h2>
+  <table id="logs"></ul>
+
+  <script>
+    updateDataStatus();
+    updateConfig();
+    updateLogs();
+    setInterval(updateDataStatus, 60 * 1000);
+
+    function updateDataStatus() {
+      fetch("/api/data-status")
+      .then(res => res.json())
+      .then(res => {
+        updateData(res.data);
+        updateStatus(res.status);
+      })
+    }
+
+    function updateStatus(status) {
+      const boardId = status.board;
+      const version = status.version;
+      const uptime = status.uptime;
+      const eInkUpdates = status.eInkUpdates;
+
+      document.getElementById("board-id").innerText = boardId;
+      document.getElementById("version").innerText = version;
+      document.getElementById("uptime").innerText = secondsToDhms(uptime);
+      document.getElementById("e-ink-updates").innerText = eInkUpdates;
+    }
+
+    function updateData(data) {
+      document.getElementById("data").innerHTML = jsonSyntaxHighlight(JSON.stringify(data, undefined, 2));
+      
+      const services = document.getElementById("services");
+      services.innerHTML = "";
+      const svcsBody = services.createTBody();
+      data.services.forEach(service => {
+        const trHeadline = svcsBody.insertRow();
+        trHeadline.classList.add("service-headline");
+        const trDetails = svcsBody.insertRow();
+        trDetails.classList.add("service-details");
+        
+        const tdStd = trHeadline.insertCell();
+        tdStd.classList.add("std");
+        tdStd.innerText = service.std;
+
+        const tdDest = trHeadline.insertCell();
+        tdDest.classList.add("dest");
+        tdDest.innerText = service.destination;
+
+        const tdEtd = trHeadline.insertCell();
+        const etd = (() => {
+          switch (service.etd) {
+            case "On time":
+              return "O/T";
+            case "Cancelled":
+              return "CANX";
+            case "Delayed":
+              return "DLAY";
+            default:
+              return service.etd;
+          }
+        })();
+        tdEtd.innerText = etd;
+
+        if (service.cancelled) {
+          const tdCancelReason = trDetails.insertCell();
+          tdCancelReason.colSpan = 3;
+          tdCancelReason.innerText = service.cancelReason;
+        } else {
+          const tdPlat = trDetails.insertCell();
+          tdPlat.innerText = `Plat. ${service.platform}`;
+
+          const tdInfo = trDetails.insertCell();
+          tdInfo.colSpan = 2;
+          let infoText = `A ${service.operator} service`;
+          if ("length" in service && service.length != "?") {
+            infoText += ` formed of ${service.length} coaches`;
+          }
+          tdInfo.innerText = infoText;
+        }
+      });
+
+      const meta = document.getElementById("meta");
+      meta.innerHTML = "";
+      const metaBody = meta.createTBody();
+
+      const trBottomUpper = metaBody.insertRow();
+      const trBottomLower = metaBody.insertRow();
+
+      const tdStation = trBottomUpper.insertCell();
+      tdStation.innerText = data.location;
+
+      const tdTime = trBottomUpper.insertCell();
+      tdTime.classList.add("time");
+      tdTime.rowSpan = 2;
+      tdTime.innerText = data.generatedAt.slice("0000-00-00T".length, "0000-00-00T00:00".length);
+
+      const tdSpace = trBottomUpper.insertCell();
+    }
+
+    function updateConfig() {
+      fetch("/api/config")
+      .then(res => res.json())
+      .then(config => {
+        function populateInput(domId, configKeyId) {
+          const element = document.getElementById(domId);
+          if (configKeyId in config.user) {
+            element.value = config.user[configKeyId];
+          } else if (configKeyId in config.default) {
+            element.placeholder = config.default[configKeyId];
+          }
+        }
+
+        populateInput("wifi-country", "WIFI_COUNTRY");
+        populateInput("wifi-name", "WIFI_NETWORK");
+        populateInput("wifi-password", "WIFI_PASSWORD");
+        populateInput("crs-location", "CRS_LOCATION");
+        populateInput("crs-filter", "CRS_FILTER");
+        populateInput("display-update-interval-secs", "DISPLAY_UPDATE_INTERVAL_SECS");
+        populateInput("sleep-mode", "SLEEP_MODE");
+        populateInput("eink-refresh-interval", "EINK_REFRESH_INTERVAL");
+        populateInput("eink-update-speed", "EINK_UPDATE_SPEED");
+        populateInput("api-url-prefix", "API_URL_PREFIX");
+        populateInput("ntp-host", "NTP_HOST");
+        populateInput("ntp-interval-hours", "NTP_INTERVAL_HOURS");
+      });
+    }
+
+    function updateLogs() {
+      fetch("/api/logs")
+      .then(res => res.json())
+      .then(logs => {
+        const table = document.getElementById("logs")
+        table.innerHTML = "";
+        const thead = table.createTHead();
+        const headings = thead.insertRow();
+        [
+          "Timestamp",
+          "Log",
+        ].forEach(heading => {
+          const th = document.createElement("th");
+          th.innerHTML = heading;
+          headings.appendChild(th);
+        });
+        const tbody = table.createTBody()
+        logs.forEach(log => {
+          const tr = tbody.insertRow();
+          const tdTimestamp = tr.insertCell();
+          tdTimestamp.innerText = new Date(log.ts * 1000).toISOString();
+          const tdLog = tr.insertCell();
+          tdLog.innerText = log.msg;
+        });
+      });
+    }
+
+    // source: https://stackoverflow.com/a/7220510
+    function jsonSyntaxHighlight(json) {
+      json = json.replace(/&/g, '&amp;').replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        var cls = "number";
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = "key";
+          } else {
+            cls = "string";
+          }
+        } else if (/true|false/.test(match)) {
+          cls = "boolean";
+        } else if (/null/.test(match)) {
+          cls = "null";
+        }
+        return `<span class="${cls}">${match}</span>`;
+      });
+    }
+
+    // source: https://stackoverflow.com/a/52387803
+    function secondsToDhms(seconds) {
+      seconds = Number(seconds);
+      const d = Math.floor(seconds / (3600*24));
+      const h = Math.floor(seconds % (3600*24) / 3600);
+      const m = Math.floor(seconds % 3600 / 60);
+      const s = Math.floor(seconds % 60);
+
+      const dDisplay = d > 0 ? d + (d == 1 ? " day, " : " days, ") : "";
+      const hDisplay = h > 0 ? h + (h == 1 ? " hour, " : " hours, ") : "";
+      const mDisplay = m > 0 ? m + (m == 1 ? " minute, " : " minutes, ") : "";
+      const sDisplay = s > 0 ? s + (s == 1 ? " second" : " seconds") : "";
+      return dDisplay + hDisplay + mDisplay + sDisplay;
+    }
+  </script>
 </body>
 </html>
