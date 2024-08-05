@@ -25,9 +25,23 @@ class Config:
         "WIFI_SUCCESS_MESSAGE_SECS": 3,
     }
     
+    SENSITIVE_CONFIG = [
+        "WIFI_PASSWORD",
+    ]
+    
     def __init__(self, filename):
         self.filename = filename
         self.load()
+    
+    def export(self):
+        redacted_data = self.data
+        for key in self.SENSITIVE_CONFIG:
+            if key in redacted_data:
+                redacted_data[key] = "***"
+        return {
+            "default": self.DEFAULT_CONFIG,
+            "user": redacted_data,
+        }
     
     def get(self, key):
         if key in self.data:
@@ -46,6 +60,7 @@ config = Config(filename="config.json")
 
 
 # constants
+HTTP_BODY_CHUNK_SIZE = 1024
 HTTP_CONTENT_HTML = "text/html"
 HTTP_CONTENT_JSON = "application/json"
 HTTP_CONTENT_PLAIN = "text/plain"
@@ -55,6 +70,7 @@ LED_MAX = 128
 LED_MIN = 0
 LED_RISING = "LED_RISING"
 LED_FALLING = "LED_FALLING"
+LOG_LIMIT = 100
 if config.get("SLEEP_MODE"):
     SLEEP_MODE_TEXT = "SLEEP MODE"
     SLEEP_MODE_START_HOUR = int(config.get("SLEEP_MODE")[0:2])
@@ -74,9 +90,28 @@ data = {}
 eink_update_count = 0
 led_brightness = 0
 led_direction = LED_RISING
+logs = []
 sleep_mode_active = False
+timers = {}
 utc_offset = 0
 
+
+def log(message):
+    global logs
+    print(message)
+    ts = time.time()
+    logs.append({ "ts":ts, "msg":message })
+    if len(logs) > LOG_LIMIT:
+        del logs[0]
+
+
+def garbage_collect():
+    initial_bytes_used = gc.mem_alloc()
+    gc.collect()
+    bytes_used = gc.mem_alloc()
+    bytes_available = gc.mem_free()
+    log(f"Successfully ran gc, freed {initial_bytes_used-bytes_used} B, {bytes_used} B used, {bytes_available} B available")
+    
 
 def breathe_led(timer):
     global led_brightness, led_direction
@@ -108,7 +143,6 @@ def display_update():
     else:
         badger.update()
     eink_update_count += 1
-    gc.collect()
 
 
 def get_utc_offset(timer):
@@ -121,7 +155,7 @@ def get_utc_offset(timer):
         utc_offset = json["dst_offset"]
     else:
         utc_offset = json["raw_offset"]
-    gc.collect()
+    garbage_collect()
 
 
 def localtime(secs=None):
@@ -141,14 +175,17 @@ def connect_to_wifi():
     display_update()
     while wlan.isconnected() == False:
         time.sleep(0.1)
+    ip = wlan.ifconfig()[0]
+    log(f"Connected to {config.get('WIFI_NETWORK')}, my IP address is {ip}")
     badger.text("Connected, my IP address is:", 4, 60, scale=1)
-    badger.text(wlan.ifconfig()[0], 12, 72, scale=2)
+    badger.text(ip, 12, 72, scale=2)
     display_update()
     time.sleep(config.get("WIFI_SUCCESS_MESSAGE_SECS"))
-    gc.collect()
+    garbage_collect()
 
 
 def get_data():
+    log("Fetching new data...")
     url = config.get("API_URL_PREFIX") + "/departures/v1/" + config.get("CRS_LOCATION")
     if config.get("CRS_FILTER"):
         url += "/" + config.get("CRS_FILTER")
@@ -158,6 +195,16 @@ def get_data():
     })
     # TODO: handle potential request failure better
     return ujson.loads(res.text)
+
+
+def get_status():
+    return {
+        "board": board_id,
+        "eInkUpdates": eink_update_count,
+        "python": os.uname().version,
+        "uptime": time.time()-boot_time,
+        "version": f"v{VERSION}",
+    }
 
 
 def set_time(timer):
@@ -249,11 +296,12 @@ def update_display(timer):
     # time
     badger.text(data["generatedAt"][TS_SLICE_START:TS_SLICE_END], 116, 107 , scale=3)
     display_update()
-    gc.collect()
+    garbage_collect()
 
 
 def run():
-    global badger
+    global badger, boot_time, timers
+    gc.enable()
     badger = badger2040.Badger2040()
     badger.set_font("bitmap8")
     badger.set_update_speed(config.get("EINK_UPDATE_SPEED"))
@@ -262,14 +310,14 @@ def run():
     ntptime.settime()
     boot_time = time.time()
     get_utc_offset(None)
+    update_display(None)
 
     # set timers
-    machine.Timer(period=config.get("LED_STEP_WAIT_MS"), callback=breathe_led)
-    update_display(None)
-    machine.Timer(period=config.get("DISPLAY_UPDATE_INTERVAL_SECS")*1000, callback=update_display)
+    timers["led"] = machine.Timer(period=config.get("LED_STEP_WAIT_MS"), callback=breathe_led)
+    timers["display"] = machine.Timer(period=config.get("DISPLAY_UPDATE_INTERVAL_SECS")*1000, callback=update_display)
     if config.get("NTP_INTERVAL_HOURS"):
-        machine.Timer(period=config.get("NTP_INTERVAL_HOURS")*1000*60*60, callback=set_time)
-    machine.Timer(period=86400*1000, callback=get_utc_offset)
+        timers["ntp"] = machine.Timer(period=config.get("NTP_INTERVAL_HOURS")*1000*60*60, callback=set_time)
+    timers["utc_offset"] = machine.Timer(period=86400*1000, callback=get_utc_offset)
 
     # web server
     addr = socket.getaddrinfo("0.0.0.0", 80)[0][-1] # see https://github.com/BenjaminEHowe/live-train-board/issues/6
@@ -277,15 +325,16 @@ def run():
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(addr)
     s.listen(1)
-    print("listening on", addr)
+    log(f"Listening for HTTP requests on port {addr[1]}")
     while True:
         try:
             cl, addr = s.accept()
-            print("client connected from", addr[0])
             request = cl.recv(1024)
-            method = request.split()[0].decode()
-            path = request.split()[1].decode()
-            print(f"Recieved {method} {path}")
+            try:
+                method = request.split()[0].decode()
+                path = request.split()[1].decode()
+            except IndexError:
+                cl.close()
             status = HTTP_STATUS_NOT_FOUND
             content_type = HTTP_CONTENT_PLAIN
             body = "not found"
@@ -294,38 +343,51 @@ def run():
                 content_type = HTTP_CONTENT_HTML
                 with open("web_ui.html") as f:
                     body = f.read()
-            elif path == "/data":
-                status = HTTP_STATUS_OK
+            elif path.startswith("/api"):
                 content_type = HTTP_CONTENT_JSON
-                body = ujson.dumps(data)
-            elif path == "/health":
-                status = HTTP_STATUS_OK
-                content_type = HTTP_CONTENT_JSON
-                body = ujson.dumps({
-                    "status": "UP",
-                    "uptime": time.time()-boot_time,
-                })
-            elif path == "/status":
-                status = HTTP_STATUS_OK
-                content_type = HTTP_CONTENT_JSON
-                body = ujson.dumps({
-                    "board": board_id,
-                    "einkUpdates": eink_update_count,
-                    "python": os.uname().version,
-                    "uptime": time.time()-boot_time,
-                    "version": f"v{VERSION}",
-                })
-            print(f"Returning {status}")
+                body = {}
+                if path == "/api/config":
+                    status = HTTP_STATUS_OK
+                    body = config.export()
+                elif path == "/api/data":
+                    status = HTTP_STATUS_OK
+                    body = data
+                elif path == "/api/data-status":
+                    status = HTTP_STATUS_OK
+                    body = {
+                        "data": data,
+                        "status": get_status(),
+                    }
+                elif path == "/api/health":
+                    status = HTTP_STATUS_OK
+                    body = {
+                        "status": "UP",
+                        "uptime": time.time()-boot_time,
+                    }
+                elif path == "/api/logs":
+                    status = HTTP_STATUS_OK
+                    body = logs
+                elif path == "/api/status":
+                    status = HTTP_STATUS_OK
+                    body = get_status()
+            if type(body) != str:
+                body = ujson.dumps(body)
+            bodyLength = len(body)
+            log(f"Returning {status} for {method} request to {path} (length {bodyLength} characters)")
             cl.send(f"HTTP/1.0 {status}\r\n")
-            cl.send("Content-type: {content_type}\r\n")
+            cl.send(f"Content-type: {content_type}\r\n")
             cl.send("\r\n")
-            cl.send(body)
+            bodySent = 0
+            while bodySent < bodyLength:
+                chunk = body[bodySent:bodySent+HTTP_BODY_CHUNK_SIZE]
+                cl.send(chunk)
+                bodySent += len(chunk)
+                time.sleep(0.01)
             cl.close()
 
         except OSError as e:
             cl.close()
-            print("connection closed")
         
         finally:
             body = None
-            gc.collect()
+            garbage_collect()
