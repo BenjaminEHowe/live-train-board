@@ -88,6 +88,7 @@ board_id = ubinascii.hexlify(machine.unique_id()).decode()
 boot_time = 0
 data = {}
 eink_update_count = 0
+ip_address = None
 led_brightness = 0
 led_direction = LED_RISING
 logs = []
@@ -163,6 +164,7 @@ def localtime(secs=None):
 
 
 def connect_to_wifi():
+    global ip_address
     network.hostname(f"train-board-{board_id[:16]}")
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
@@ -175,10 +177,10 @@ def connect_to_wifi():
     display_update()
     while wlan.isconnected() == False:
         time.sleep(0.1)
-    ip = wlan.ifconfig()[0]
-    log(f"Connected to {config.get('WIFI_NETWORK')}, my IP address is {ip}")
+    ip_address = wlan.ifconfig()[0]
+    log(f"Connected to {config.get('WIFI_NETWORK')}, my IP address is {ip_address}")
     badger.text("Connected, my IP address is:", 4, 60, scale=1)
-    badger.text(ip, 12, 72, scale=2)
+    badger.text(ip_address, 12, 72, scale=2)
     display_update()
     time.sleep(config.get("WIFI_SUCCESS_MESSAGE_SECS"))
     garbage_collect()
@@ -290,11 +292,13 @@ def update_display(timer):
     for i in range(len(data["services"][:4])):
         display_service(26 * i, data["services"][i])
     # locations
-    badger.text(data['location'], 3, 110 , scale=1)
+    badger.text(data['location'], 3, 110, scale=1)
     if "filterLocation" in data:
-        badger.text(data['filterLocation'], 3, 120 , scale=1)
+        badger.text(data['filterLocation'], 3, 120, scale=1)
+    # ip address
+    badger.text(ip_address, 220, 115, scale=1)
     # time
-    badger.text(data["generatedAt"][TS_SLICE_START:TS_SLICE_END], 116, 107 , scale=3)
+    badger.text(data["generatedAt"][TS_SLICE_START:TS_SLICE_END], 116, 107, scale=3)
     display_update()
     garbage_collect()
 
