@@ -92,6 +92,8 @@ ip_address = None
 led_brightness = 0
 led_direction = LED_RISING
 logs = []
+with open("shortened_station_names.json") as f:
+    shortened_station_names = ujson.load(f)
 sleep_mode_active = False
 timers = {}
 utc_offset = 0
@@ -248,6 +250,15 @@ def should_be_in_sleep_mode(
 def update_display(timer):
     global data, sleep_mode_active
 
+    def format_station_name(name):
+        global shortened_station_names
+        if len(name) < 20:
+            return name
+        else:
+            if name not in shortened_station_names:
+                shortened_station_names[name] = f"{name[0:17]}..."
+            return shortened_station_names[name]
+
     def display_service(y, service):
         def etd_text(etd):
             if etd == "On time":
@@ -260,7 +271,7 @@ def update_display(timer):
                 return etd
         
         badger.text(service["std"], 0, y, scale=2)
-        badger.text(service["destination"], 55, y, scale=2)
+        badger.text(format_station_name(service["destination"]), 55, y, scale=2)
         badger.text(etd_text(service["etd"]), 250, y, scale=2)
         if service["cancelled"]:
             badger.text(service["cancelReason"], 0, y + 16, scale=1)
@@ -292,9 +303,9 @@ def update_display(timer):
     for i in range(len(data["services"][:4])):
         display_service(26 * i, data["services"][i])
     # locations
-    badger.text(data['location'], 3, 110, scale=1)
+    badger.text(format_station_name(data["location"]), 3, 110, scale=1)
     if "filterLocation" in data:
-        badger.text(data['filterLocation'], 3, 120, scale=1)
+        badger.text(format_station_name(data["filterLocation"]), 3, 120, scale=1)
     # ip address
     badger.text(ip_address, 220, 115, scale=1)
     # time
