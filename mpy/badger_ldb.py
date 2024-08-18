@@ -274,7 +274,11 @@ def update_display(timer):
         badger.text(format_station_name(service["destination"]), 55, y, scale=2)
         badger.text(etd_text(service["etd"]), 250, y, scale=2)
         if service["cancelled"]:
-            badger.text(service["cancelReason"], 0, y + 16, scale=1)
+            if "cancelReason" in service:
+                cancelReason = service["cancelReason"]
+            else:
+                cancelReason = "Due to an unknown reason"
+            badger.text(cancelReason, 0, y + 16, scale=1)
         else:
             badger.text(f"Plat. {service['platform']}", 0, y + 16, scale=1)
             detailText = f"A {service['operator']} service"
